@@ -1,0 +1,1027 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "XmpUF8t9D3eP"
+      },
+      "outputs": [],
+      "source": [
+        "import os\n",
+        "import cv2\n",
+        "import numpy as np\n",
+        "from PIL import Image\n",
+        "from keras.utils import to_categorical\n",
+        "from keras.models import Model, Sequential\n",
+        "from sklearn.utils import shuffle\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "import pandas as pd\n",
+        "import h5py\n",
+        "from matplotlib import pyplot as plt\n",
+        "from PIL import Image\n",
+        "from time import time\n",
+        "import logging\n",
+        "import matplotlib.pyplot as plt\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.datasets import fetch_lfw_people\n",
+        "from sklearn.model_selection import GridSearchCV\n",
+        "from sklearn.metrics import classification_report\n",
+        "from sklearn.metrics import confusion_matrix, accuracy_score\n",
+        "from sklearn.decomposition import PCA\n",
+        "from sklearn.svm import SVC"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "emotion_labels = [\"Angry\", \"Disgust\", \"Fear\", \"Happy\", \"Neutral\", \"Sad\", \"Surprise\"]"
+      ],
+      "metadata": {
+        "id": "9k-jDmQnEDRq"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "num_classes = len(emotion_labels)"
+      ],
+      "metadata": {
+        "id": "7o2dEAS6EDOt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from google.colab import drive\n",
+        "drive.mount('/content/drive')"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "jmmYBJV8EDMI",
+        "outputId": "6e4887ae-976c-4f14-b278-53fe7bfe82bf"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount(\"/content/drive\", force_remount=True).\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "source_path = \"/RAF-DB.zip\"\n",
+        "#source_path = \"images.zip\""
+      ],
+      "metadata": {
+        "id": "zWGtYc-DEDJa"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "temp_path = \"/content/sample_data/\""
+      ],
+      "metadata": {
+        "id": "o4cimfnzEDGi"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from zipfile import ZipFile\n",
+        "with ZipFile(source_path, \"r\") as zObject:\n",
+        "  zObject.extractall(path=temp_path)"
+      ],
+      "metadata": {
+        "id": "Kz8G0A-mEDDt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def read_images(path):\n",
+        "    images = []\n",
+        "    labels = []\n",
+        "    for emotion in emotion_labels:\n",
+        "        emotion_path = os.path.join(path, emotion.lower())\n",
+        "        for filename in os.listdir(emotion_path):\n",
+        "            img_path = os.path.join(emotion_path, filename)\n",
+        "            img = cv2.imread(img_path)\n",
+        "            #if img is not None:  # Check if the image is read correctly\n",
+        "            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)  # Convert to grayscale\n",
+        "            img = cv2.resize(img, (224, 224))  # Resize to 224x224\n",
+        "            images.append(img.flatten())\n",
+        "            labels.append(emotion_labels.index(emotion))\n",
+        "    df = pd.DataFrame(images)\n",
+        "    df['label'] = labels\n",
+        "    return df"
+      ],
+      "metadata": {
+        "id": "RODpbKocEDA8"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def read_images(path):\n",
+        "  images = []\n",
+        "  labels = []\n",
+        "  for emotion in emotion_labels:\n",
+        "    for filename in os.listdir(os.path.join(path,emotion.lower())):\n",
+        "      img = cv2.imread(os.path.join(path,emotion.lower(),filename))\n",
+        "      images.append(img.flatten())\n",
+        "      labels.append(emotion_labels.index(emotion))\n",
+        "  df = pd.DataFrame(images)\n",
+        "  df['label'] = labels\n",
+        "  return df"
+      ],
+      "metadata": {
+        "id": "86sPSbO_EC-G"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_path = temp_path + \"images/train\"\n",
+        "test_path = temp_path + \"images/validation\""
+      ],
+      "metadata": {
+        "id": "IYfK04MsEC68"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_df = read_images(train_path)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 263
+        },
+        "id": "VNw-NaEOEC4M",
+        "outputId": "16110591-4d07-4f62-d00f-d88f7e81d9f5"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "FileNotFoundError",
+          "evalue": "[Errno 2] No such file or directory: '/content/sample_data/images/train/angry'",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mFileNotFoundError\u001b[0m                         Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-12-c9f52fed337c>\u001b[0m in \u001b[0;36m<cell line: 1>\u001b[0;34m()\u001b[0m\n\u001b[0;32m----> 1\u001b[0;31m \u001b[0mtrain_df\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mread_images\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mtrain_path\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
+            "\u001b[0;32m<ipython-input-10-84bf030ef76f>\u001b[0m in \u001b[0;36mread_images\u001b[0;34m(path)\u001b[0m\n\u001b[1;32m      3\u001b[0m   \u001b[0mlabels\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;34m[\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      4\u001b[0m   \u001b[0;32mfor\u001b[0m \u001b[0memotion\u001b[0m \u001b[0;32min\u001b[0m \u001b[0memotion_labels\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 5\u001b[0;31m     \u001b[0;32mfor\u001b[0m \u001b[0mfilename\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mos\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlistdir\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mos\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mpath\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mjoin\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mpath\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0memotion\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlower\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      6\u001b[0m       \u001b[0mimg\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcv2\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mimread\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mos\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mpath\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mjoin\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mpath\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0memotion\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlower\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mfilename\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      7\u001b[0m       \u001b[0mimages\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mappend\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mimg\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mflatten\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mFileNotFoundError\u001b[0m: [Errno 2] No such file or directory: '/content/sample_data/images/train/angry'"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_df = read_images(test_path)"
+      ],
+      "metadata": {
+        "id": "yYgXQGtlEC1s"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_df.shape"
+      ],
+      "metadata": {
+        "id": "jvuZeXfkECw2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_df.shape"
+      ],
+      "metadata": {
+        "id": "22AjnlllECpJ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_df"
+      ],
+      "metadata": {
+        "id": "eLGhmsz3Evzs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_df"
+      ],
+      "metadata": {
+        "id": "F47P-2XgEvxt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_df['label']"
+      ],
+      "metadata": {
+        "id": "M4h3hXspEvvO"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "test_df['label']"
+      ],
+      "metadata": {
+        "id": "0oJLf_GPEvs2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_train = train_df.iloc[:, :-1].values\n",
+        "y_train = train_df.iloc[:, -1].values\n",
+        "\n",
+        "X_test = test_df.iloc[:, :-1].values\n",
+        "y_test = test_df.iloc[:, -1].values"
+      ],
+      "metadata": {
+        "id": "tR4FTfxiE6al"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn import svm\n",
+        "from sklearn.metrics import classification_report, accuracy_score\n",
+        "from sklearn.preprocessing import StandardScaler"
+      ],
+      "metadata": {
+        "id": "Hasd17HRE6YQ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "scaler = StandardScaler()\n",
+        "X_train = scaler.fit_transform(X_train)\n",
+        "X_test = scaler.transform(X_test)"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 176
+        },
+        "id": "JRsDCup1E6WI",
+        "outputId": "e933cf79-fd36-430c-c9b2-a714598809ed"
+      },
+      "execution_count": null,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "NameError",
+          "evalue": "name 'X_train' is not defined",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-23-1a15d1ec0505>\u001b[0m in \u001b[0;36m<cell line: 2>\u001b[0;34m()\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0mscaler\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mStandardScaler\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 2\u001b[0;31m \u001b[0mX_train\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mscaler\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfit_transform\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_train\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      3\u001b[0m \u001b[0mX_test\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mscaler\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtransform\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_test\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'X_train' is not defined"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"Fitting the classifier to the training set\")\n",
+        "t0 = time()\n",
+        "param_grid = {'C': [1e3, 5e3, 1e4, 5e4, 1e5],\n",
+        "              'gamma': [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.1], }\n",
+        "\n",
+        "#class_weight='balanced'\n",
+        "clf = GridSearchCV(SVC(kernel='rbf', class_weight='balanced'), param_grid)\n",
+        "clf = clf.fit(X_train_pca, y_train_)\n",
+        "print(\"done in %0.3fs\" % (time() - t0))\n",
+        "print(\"Best estimator found by grid search:\")\n",
+        "print(clf.best_estimator_)"
+      ],
+      "metadata": {
+        "id": "hdPUrLA6E6Ty"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred = clf.predict(X_test)"
+      ],
+      "metadata": {
+        "id": "p0fxqhwcE6Rc"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "accuracy = accuracy_score(y_test, y_pred)\n",
+        "report = classification_report(y_test, y_pred)"
+      ],
+      "metadata": {
+        "id": "Pz1rsSsuE6PE"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(f'Accuracy: {accuracy}')"
+      ],
+      "metadata": {
+        "id": "Uxvw6B6qE6Mm"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('Classification Report:')"
+      ],
+      "metadata": {
+        "id": "-EoIsoluFMB3"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(report)"
+      ],
+      "metadata": {
+        "id": "ddzGyWN3FL_P"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "fer_data=h5py.File('/content/drive/MyDrive/Colab Notebooks/images.zip')\n",
+        "print(fer_data)"
+      ],
+      "metadata": {
+        "id": "7w0LN0dKFL8o"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "fer_x = np.asarray(fer_data['Training_pixel']).reshape((28709, 48*48))"
+      ],
+      "metadata": {
+        "id": "qzfvtGVgFXTO"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "fer_y = fer_data['Training_label']\n",
+        "print(fer_y)"
+      ],
+      "metadata": {
+        "id": "i3IgN_BlFXRF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_train = fer_x"
+      ],
+      "metadata": {
+        "id": "hwpRv155FXO5"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_test_public=np.asarray(fer_data['PublicTest_pixel']).reshape((3589,48*48))\n",
+        "print(X_test_public)"
+      ],
+      "metadata": {
+        "id": "jIa7nerGFXMi"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_test_private=np.asarray(fer_data['PrivateTest_pixel']).reshape((3589,48*48))"
+      ],
+      "metadata": {
+        "id": "IrHzU-HKFXKI"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "num_train = X_train.shape[0]"
+      ],
+      "metadata": {
+        "id": "JZTq1lrmFfam"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "num_val_public=X_test_public.shape[0]"
+      ],
+      "metadata": {
+        "id": "3Pg1Cfs6FfYR"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "num_val_private=X_test_private.shape[0]"
+      ],
+      "metadata": {
+        "id": "RnQY1NKZFfV9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('Training: ',X_train.shape)"
+      ],
+      "metadata": {
+        "id": "yzdybi6ZFfTs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('PublicTest:',X_test_public.shape)"
+      ],
+      "metadata": {
+        "id": "_-zUPIemFfRZ"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('PrivateTest:',X_test_private.shape)"
+      ],
+      "metadata": {
+        "id": "ozvaxOmVFp3B"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_train = fer_data['Training_label']"
+      ],
+      "metadata": {
+        "id": "QGDI5UJgFp0s"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_train = to_categorical(Y_train, num_classes)"
+      ],
+      "metadata": {
+        "id": "aAJmlNXJFpyY"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_test_public=fer_data['PublicTest_label']"
+      ],
+      "metadata": {
+        "id": "QJNHRa7_Fpta"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_test_private=fer_data['PrivateTest_label']"
+      ],
+      "metadata": {
+        "id": "i1Amg9FUFxmF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_test_public=to_categorical(Y_test_public,num_classes)"
+      ],
+      "metadata": {
+        "id": "PgOFsgbGFxja"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "Y_test_private=to_categorical(Y_test_private,num_classes)"
+      ],
+      "metadata": {
+        "id": "4I_T1dYmFxg6"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('Training:',Y_train.shape)"
+      ],
+      "metadata": {
+        "id": "_5bPiaK0F6an"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('PublicTest:',Y_test_public.shape)"
+      ],
+      "metadata": {
+        "id": "eoMpxhMAF6YL"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print('PrivateTest:',Y_test_private.shape)"
+      ],
+      "metadata": {
+        "id": "MlSktVGRF6Vz"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "n_components = 64"
+      ],
+      "metadata": {
+        "id": "_e6RRRDwGA0o"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "pca =PCA(svd_solver='randomized',n_components=n_components,whiten=True).fit(X_train)"
+      ],
+      "metadata": {
+        "id": "IALc7sc4GAyD"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_train_pca = pca.transform(X_train)"
+      ],
+      "metadata": {
+        "id": "foSqQPboGAvt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_val_pca_public = pca.transform(X_test_public)"
+      ],
+      "metadata": {
+        "id": "pmCrlckeGAtV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "X_val_pca_private = pca.transform(X_test_private)"
+      ],
+      "metadata": {
+        "id": "hPTL9-n7GKLF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(X_train_pca.shape)"
+      ],
+      "metadata": {
+        "id": "gbtACmrOGKIr"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(X_val_pca_public.shape)"
+      ],
+      "metadata": {
+        "id": "29SbTe3cGN8v"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(X_val_pca_private.shape)"
+      ],
+      "metadata": {
+        "id": "g1OhkElyGN6X"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "eigenfaces = pca.components_.reshape((n_components, 48, 48))"
+      ],
+      "metadata": {
+        "id": "fP7Um91BGN3_"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def plot_gallery(images, titles, h, w, n_row=3, n_col=4):\n",
+        "    \"\"\"Helper function to plot a gallery of portraits\"\"\"\n",
+        "    plt.figure(figsize=(1.8 * n_col, 2.4 * n_row))\n",
+        "    plt.subplots_adjust(bottom=0, left=.01, right=.99, top=.90, hspace=.35)\n",
+        "    for i in range(n_row * n_col):\n",
+        "        plt.subplot(n_row, n_col, i + 1)\n",
+        "        plt.imshow(images[i].reshape((h, w)), cmap=plt.cm.gray)\n",
+        "        plt.title(titles[i], size=12)\n",
+        "        plt.xticks(())\n",
+        "        plt.yticks(())\n",
+        "\n",
+        "eigenface_titles = [\"eigenface %d\" % i for i in range(eigenfaces.shape[0])]\n",
+        "plot_gallery(eigenfaces, eigenface_titles, 48, 48)\n",
+        "plt.show()"
+      ],
+      "metadata": {
+        "id": "cY9OPRjGGN1l"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_train_ = np.argmax(Y_train, axis=-1)"
+      ],
+      "metadata": {
+        "id": "0EicpcblGVGW"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_train_.shape"
+      ],
+      "metadata": {
+        "id": "QgdPx_J0GVD9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "t0 = time()"
+      ],
+      "metadata": {
+        "id": "hCJDjMwnGVBx"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "param_grid = {'random_state': [0]}"
+      ],
+      "metadata": {
+        "id": "esfKQJaYGU_h"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.tree import DecisionTreeClassifier"
+      ],
+      "metadata": {
+        "id": "Z_PGu8N5GU9J"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "clf = GridSearchCV(estimator=DecisionTreeClassifier(), param_grid=param_grid, cv=5)"
+      ],
+      "metadata": {
+        "id": "kUPATgQtGgVk"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "clf = clf.fit(X_train_pca[:5000], y_train_[:5000])"
+      ],
+      "metadata": {
+        "id": "F5jZcMsRGgTI"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"done in %0.3fs\" % (time() - t0))"
+      ],
+      "metadata": {
+        "id": "MTRUzw26GgQn"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(clf.best_estimator_)"
+      ],
+      "metadata": {
+        "id": "R6LpfTHPGnZy"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "t0 = time()"
+      ],
+      "metadata": {
+        "id": "7Ei0WFwyGnXb"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred_public= clf.predict(X_val_pca_public)"
+      ],
+      "metadata": {
+        "id": "UJklmOy5GnU8"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_pred_private= clf.predict(X_val_pca_private)"
+      ],
+      "metadata": {
+        "id": "ZfSGHjGHHKqP"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(\"done in %0.3fs\" % (time() - t0))"
+      ],
+      "metadata": {
+        "id": "Fe2iYpvqHKn8"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_val_public = np.argmax(Y_test_public, axis=-1)"
+      ],
+      "metadata": {
+        "id": "tMNQK9cHHiON"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "y_val_private = np.argmax(Y_test_private, axis=-1)"
+      ],
+      "metadata": {
+        "id": "eDQDfFS7HiLy"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(classification_report(y_val_public, y_pred_public))"
+      ],
+      "metadata": {
+        "id": "pi4Uw1BTHmAa"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(confusion_matrix(y_val_public, y_pred_public, labels=range(num_classes)))\n",
+        "\n",
+        "from sklearn.metrics import confusion_matrix\n",
+        "\n",
+        "import seaborn as sns\n",
+        "\n",
+        "n_classes = Y_test_public.shape[1]\n",
+        "labels=range(n_classes)\n",
+        "\n",
+        "cm = confusion_matrix(y_val_public, y_pred_public)\n",
+        "cm_normalised = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]\n",
+        "sns.set(font_scale=1.5)\n",
+        "fig, ax = plt.subplots(figsize=(10,10))\n",
+        "ax = sns.heatmap(cm_normalised, annot=True, linewidths=0, square=False,\n",
+        "                 cmap=\"Greens\", yticklabels=labels, xticklabels=labels, vmin=0, vmax=np.max(cm_normalised),\n",
+        "                 fmt=\".2f\", annot_kws={\"size\": 20})\n",
+        "ax.set(xlabel='Predicted label', ylabel='True label')"
+      ],
+      "metadata": {
+        "id": "6ypmkxY3Hl-C"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(classification_report(y_val_private, y_pred_private))\n",
+        "from sklearn.metrics import confusion_matrix\n",
+        "import seaborn as sns\n",
+        "n_classes = Y_train.shape[1]\n",
+        "labels=range(n_classes)\n",
+        "\n",
+        "cm = confusion_matrix(y_val_private, y_pred_private)\n",
+        "cm_normalised = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]\n",
+        "sns.set(font_scale=1.5)\n",
+        "fig, ax = plt.subplots(figsize=(10,10))\n",
+        "ax = sns.heatmap(cm_normalised, annot=True, linewidths=0, square=False,\n",
+        "                 cmap=\"Greens\", yticklabels=labels, xticklabels=labels, vmin=0, vmax=np.max(cm_normalised),\n",
+        "                 fmt=\".2f\", annot_kws={\"size\": 20})\n",
+        "ax.set(xlabel='Predicted label', ylabel='True label')"
+      ],
+      "metadata": {
+        "id": "c9muN9k7HqI3"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "print(confusion_matrix(y_val_private, y_pred_private, labels=range(num_classes)))"
+      ],
+      "metadata": {
+        "id": "KJZ7B4yRHqGh"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
