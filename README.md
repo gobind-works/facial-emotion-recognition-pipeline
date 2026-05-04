@@ -22,4 +22,20 @@ Python | TensorFlow/Keras | Scikit-learn | Pandas | NumPy | Matplotlib
 | RAF-DB  | CNN   | 85%      |
 | RAF-DB  | SVM   | 77%      |
 
-CNN outperformed SVM on the more complex RAF-DB dataset,
+CNN outperformed SVM on the more complex RAF-DB dataset, demonstrating
+superior ability to handle varied lighting and facial orientations.
+
+## 🔄 Pipeline Stages
+1. Data Loading & Extraction
+2. Image Preprocessing & Normalization
+3. Feature Engineering
+4. Model Training (CNN & SVM)
+5. Performance Evaluation & Comparison
+
+## 📄 Publication
+Gobind Kumar et al., "Facial Emotion Recognition: Review and Perspectives"
+Springer, 2024
+https://link.springer.com/chapter/10.1007/978-981-97-8526-1_43
+
+## 👤 Author
+Gobind Kumar | gobind1721@gmail.com
